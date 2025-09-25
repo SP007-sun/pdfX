@@ -1,0 +1,6 @@
+{
+  "name": "Copy of PDF Page Editor",
+  "description": "A web-based tool to visually select and delete pages from a PDF document, merge multiple pages into one, or demerge them back. Offers options for page size, background colors, and inverting colors for the entire document before downloading the modified file.",
+  "requestFramePermissions": [],
+  "prompt": ""
+}

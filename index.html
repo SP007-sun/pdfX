@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PDF Page Editor</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- pdf.js for rendering PDF pages -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+  <!-- pdf-lib for manipulating and saving PDFs -->
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <link rel="stylesheet" href="style.css">
+  <script>
+    // Required for pdf.js to work correctly
+    if (typeof pdfjsLib !== 'undefined') {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js`;
+    }
+  </script>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.1.1/",
+    "react": "https://esm.sh/react@^19.1.1",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.1/"
+  }
+}
+</script>
+</head>
+<body class="bg-gray-100 dark:bg-gray-800">
+
+  <div id="app" class="min-h-screen text-gray-800 dark:text-gray-200 flex flex-col items-center p-4 font-sans">
+    <header class="w-full max-w-6xl text-center mb-6">
+      <h1 class="text-4xl font-bold text-gray-900 dark:text-white">PDF Page Editor</h1>
+      <p class="text-lg text-gray-600 dark:text-gray-400 mt-2">
+        Delete, merge, and re-order pages from your PDF documents entirely in your browser.
+      </p>
+    </header>
+
+    <main class="w-full max-w-6xl flex-grow flex flex-col bg-white dark:bg-gray-900 rounded-lg shadow-2xl overflow-hidden">
+      
+      <!-- Error Box -->
+      <div id="error-box" class="hidden m-4 p-4 bg-red-100 dark:bg-red-900/50 border border-red-400 text-red-700 dark:text-red-300 rounded-lg" role="alert">
+        <p><span class="font-bold">Error:</span> <span id="error-message"></span></p>
+      </div>
+      
+      <!-- Processing Overlay -->
+      <div id="processing-view" class="hidden flex-grow flex flex-col items-center justify-center p-8">
+        <div class="w-16 h-16 border-4 border-blue-500 border-dashed rounded-full animate-spin"></div>
+        <p id="processing-message" class="mt-4 text-lg font-semibold"></p>
+      </div>
+
+      <!-- File Uploader View -->
+      <div id="file-uploader-view" class="flex-grow flex items-center justify-center p-8">
+        <label for="file-upload-input" class="relative flex flex-col items-center justify-center w-full max-w-2xl h-80 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+          <div class="flex flex-col items-center justify-center pt-5 pb-6">
+             <svg class="w-12 h-12 mb-4 text-gray-500 dark:text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/></svg>
+            <p class="mb-2 text-lg text-gray-500 dark:text-gray-400">
+              <span class="font-semibold text-blue-600 dark:text-blue-400">Click to upload</span> or drag and drop
+            </p>
+            <p class="text-sm text-gray-500 dark:text-gray-400">PDF files only</p>
+          </div>
+          <input id="file-upload-input" type="file" class="hidden" accept="application/pdf" />
+        </label>
+      </div>
+      
+      <!-- PDF Viewer -->
+      <div id="pdf-viewer-view" class="hidden flex flex-col h-full">
+        <header class="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 p-4 z-10 shadow-sm">
+          <div class="flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3 min-w-0">
+               <svg class="w-6 h-6 text-red-500 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20"><path d="M5.5 14.5a.5.5 0 01.5-.5h2a.5.5 0 010 1h-2a.5.5 0 01-.5-.5z"/><path d="M3 0h10a2 2 0 012 2v12a2 2 0 01-2 2H3a2 2 0 01-2-2v-1h1v1a1 1 0 001 1h10a1 1 0 001-1V2a1 1 0 00-1-1H3a1 1 0 00-1 1v1H1V2a2 2 0 012-2z"/><path d="M1.5 5.5a.5.5 0 00.5.5h2a.5.5 0 000-1h-2a.5.5 0 00-.5.5zm0 2a.5.5 0 00.5.5h2a.5.5 0 000-1h-2a.5.5 0 00-.5.5zm0 2a.5.5 0 00.5.5h2a.5.5 0 000-1h-2a.5.5 0 00-.5.5z"/><path fill-rule="evenodd" d="M8 5.5a.5.5 0 01.5-.5h2a.5.5 0 010 1h-2a.5.5 0 01-.5-.5zM8 8a.5.5 0 01.5-.5h2a.5.5 0 010 1h-2A.5.5 0 018 8zm0 2.5a.5.5 0 01.5-.5h2a.5.5 0 010 1h-2a.5.5 0 01-.5-.5z"/></svg>
+              <p id="file-name" class="font-semibold text-lg truncate" title=""></p>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <span id="selection-status" class="text-sm font-medium text-gray-600 dark:text-gray-300"></span>
+              <button id="clear-selection-btn" class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 transition-colors">Clear</button>
+              <button id="delete-btn" class="px-3 py-1.5 text-sm font-medium text-white bg-red-500 rounded-md hover:bg-red-600 disabled:bg-red-400 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-red-600 dark:hover:bg-red-700 transition-colors flex items-center gap-1.5"><svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>Delete</button>
+              <button id="demerge-btn" class="px-3 py-1.5 text-sm font-medium text-white bg-orange-500 rounded-md hover:bg-orange-600 disabled:bg-orange-400 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-orange-600 dark:hover:bg-orange-700 transition-colors flex items-center gap-1.5"><svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M20.25 3.75v4.5m0-4.5h-4.5m4.5 0L15 9m-6 6L3.75 20.25m0-4.5v4.5m0-4.5h4.5m-4.5 0L9 15m11.25 5.25v-4.5m0 4.5h-4.5m4.5 0L15 15" /></svg>Demerge</button>
+              <button id="merge-btn" class="px-3 py-1.5 text-sm font-medium text-white bg-blue-500 rounded-md hover:bg-blue-600 disabled:bg-blue-400 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-blue-600 dark:hover:bg-blue-700 transition-colors flex items-center gap-1.5"><svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-4.5 0V6.75A2.25 2.25 0 0115.75 4.5h1.5a2.25 2.25 0 012.25 2.25v1.5m-4.5 0h4.5m-4.5 0a2.25 2.25 0 01-2.25-2.25V6.75" /></svg>Merge</button>
+              <button id="new-file-btn" class="px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-100 rounded-md hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-300 dark:hover:bg-blue-900 transition-colors">New PDF</button>
+            </div>
+          </div>
+        </header>
+        <div class="flex-grow p-4 md:p-8 overflow-y-auto bg-gray-50 dark:bg-gray-800">
+          <div id="pages-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            <!-- Page thumbnails will be injected here -->
+          </div>
+        </div>
+        <footer class="sticky bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 p-4 z-10 shadow-up">
+          <div class="w-full flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div class="relative flex items-start">
+                  <div class="flex items-center h-5">
+                      <input id="global-invert-checkbox" type="checkbox" class="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded dark:bg-gray-700 dark:border-gray-600"/>
+                  </div>
+                  <div class="ml-3 text-sm">
+                      <label for="global-invert-checkbox" class="font-medium text-gray-700 dark:text-gray-300">Invert Colors for Entire PDF</label>
+                      <p class="text-gray-500 dark:text-gray-400 text-xs">Good for printing. May slightly reduce quality.</p>
+                  </div>
+              </div>
+              <button id="download-btn" class="w-full sm:w-auto flex items-center justify-center gap-3 px-6 py-3 text-lg font-bold text-white bg-green-600 rounded-lg shadow-lg hover:bg-green-700 disabled:bg-green-400 dark:disabled:bg-green-800 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 disabled:scale-100">
+                <span>Apply & Download</span>
+                <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+              </button>
+          </div>
+        </footer>
+      </div>
+    </main>
+
+    <footer class="w-full max-w-6xl text-center mt-6 text-sm text-gray-500 dark:text-gray-400">
+        <p>Your files are processed locally in your browser and are never uploaded to any server.</p>
+        <p>&copy; <span id="year"></span> PDF Page Editor. All rights reserved.</p>
+    </footer>
+  </div>
+  
+  <!-- Merge Config Modal -->
+  <div id="merge-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70" aria-labelledby="merge-modal-title" role="dialog" aria-modal="true">
+    <div id="merge-modal-content" class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col max-h-[90vh]">
+      <header class="flex items-center justify-between p-4 border-b dark:border-gray-700 flex-shrink-0">
+          <h2 id="merge-modal-title" class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <svg class="w-6 h-6 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-4.5 0V6.75A2.25 2.25 0 0115.75 4.5h1.5a2.25 2.25 0 012.25 2.25v1.5m-4.5 0h4.5m-4.5 0a2.25 2.25 0 01-2.25-2.25V6.75" /></svg>
+            Merge Pages Configuration
+          </h2>
+          <button id="merge-modal-close-btn" class="p-1 rounded-full text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 dark:text-gray-400" aria-label="Close modal">
+             <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+      </header>
+      <div class="p-6 space-y-6 overflow-y-auto">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label for="page-size-select" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Output Page Size</label>
+            <select id="page-size-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white">
+              <option value="A4_portrait" selected>A4 (Portrait)</option>
+              <option value="A4_landscape">A4 (Landscape)</option>
+              <option value="Letter_portrait">Letter (Portrait)</option>
+              <option value="Letter_landscape">Letter (Landscape)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Background Color</label>
+            <div id="background-color-group" class="mt-1 flex rounded-md shadow-sm">
+                <button type="button" data-value="white" class="relative inline-flex items-center justify-center w-1/2 px-4 py-2 rounded-l-md border text-sm font-medium focus:z-10 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors bg-blue-600 text-white border-blue-600">White</button>
+                <button type="button" data-value="black" class="relative -ml-px inline-flex items-center justify-center w-1/2 px-4 py-2 rounded-r-md border text-sm font-medium focus:z-10 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600">Black</button>
+            </div>
+          </div>
+        </div>
+        <div class="relative flex items-start">
+          <div class="flex items-center h-5">
+            <input id="invert-colors-checkbox" type="checkbox" class="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded dark:bg-gray-700 dark:border-gray-600"/>
+          </div>
+          <div class="ml-3 text-sm">
+            <label for="invert-colors-checkbox" class="font-medium text-gray-700 dark:text-gray-300">Invert Page Colors</label>
+            <p class="text-gray-500 dark:text-gray-400">Good for printing. May slightly reduce visual quality.</p>
+          </div>
+        </div>
+        <div>
+          <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Layout Preview</h3>
+          <div id="preview-container" class="w-full h-80 bg-gray-200 dark:bg-gray-700/50 rounded-md flex items-center justify-center border border-dashed dark:border-gray-600 p-2">
+            <div id="preview-loader" class="hidden w-8 h-8 border-2 border-blue-500 border-dashed rounded-full animate-spin"></div>
+            <img id="preview-image" src="" alt="Merge preview" class="hidden max-w-full max-h-full object-contain shadow-md"/>
+          </div>
+        </div>
+      </div>
+      <footer class="flex justify-end p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 rounded-b-xl flex-shrink-0">
+          <div class="flex gap-3">
+            <button id="merge-modal-cancel-btn" type="button" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600">Cancel</button>
+            <button id="merge-modal-confirm-btn" type="button" class="inline-flex justify-center items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+               <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-4.5 0V6.75A2.25 2.25 0 0115.75 4.5h1.5a2.25 2.25 0 012.25 2.25v1.5m-4.5 0h4.5m-4.5 0a2.25 2.25 0 01-2.25-2.25V6.75" /></svg>
+              Confirm Merge
+            </button>
+          </div>
+      </footer>
+    </div>
+  </div>
+
+  <script src="index.js"></script>
+</body>
+</html>
